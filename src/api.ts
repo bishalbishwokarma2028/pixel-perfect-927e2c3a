@@ -212,6 +212,7 @@ export const api = {
     );
     const { error } = await supabase.from("consignments").insert(rows as never);
     if (error) fail("Failed to import data", error);
+    invalidateConsignmentsCache();
     return { success: true, added: rows.length };
   },
 
@@ -254,6 +255,7 @@ export const api = {
       .in("id", ids)
       .select("id");
     if (error) fail("Failed to update data", error);
+    invalidateConsignmentsCache();
     return { success: true, updatedCount: (data as unknown as { id: string }[]).length };
   },
 
@@ -265,6 +267,7 @@ export const api = {
       .select("*")
       .single();
     if (error) fail("Failed to update data", error);
+    invalidateConsignmentsCache();
     return rowToConsignment(data as unknown as ConsignmentRow);
   },
 
@@ -276,12 +279,14 @@ export const api = {
       .in("id", ids)
       .select("id");
     if (error) fail("Failed to delete data", error);
+    invalidateConsignmentsCache();
     return { success: true, deletedCount: (data as unknown as { id: string }[]).length };
   },
 
   async deleteConsignment(id: string): Promise<{ success: boolean }> {
     const { error } = await supabase.from("consignments").delete().eq("id", id);
     if (error) fail("Failed to delete data", error);
+    invalidateConsignmentsCache();
     return { success: true };
   },
 
