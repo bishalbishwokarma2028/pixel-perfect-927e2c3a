@@ -7,11 +7,56 @@ import { buildAssistantPrompt } from "./ai-prompt";
 
 export const AskAssistantInput = z.object({ message: z.string().min(1).max(4000) });
 
+const OPENROUTER_MODEL = "google/gemini-2.5-flash";
+
+type AiPayload = {
+  error?: { message?: string };
+  message?: string;
+  choices?: Array<{ message?: { content?: string } }>;
+} | null;
+
+async function callOpenRouter(apiKey: string, prompt: string) {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "X-Title": "ADO Assistant",
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 2000,
+    }),
+  });
+  const payload = (await response.json().catch(() => null)) as AiPayload;
+  return { response, payload };
+}
+
+async function callLovable(apiKey: string, prompt: string) {
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "Lovable-API-Key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 2000,
+    }),
+  });
+  const payload = (await response.json().catch(() => null)) as AiPayload;
+  return { response, payload };
+}
+
 export async function runAssistant(message: string): Promise<string> {
+  const openRouterKeys = [
+    process.env["OPENROUTER_API_KEY"],
+    process.env["OPENROUTER_API_KEY_2"],
+  ].filter((key): key is string => Boolean(key));
   const lovableApiKey = process.env["LOVABLE_API_KEY"];
-  if (!lovableApiKey) {
+  if (openRouterKeys.length === 0 && !lovableApiKey) {
     throw new Error("The AI service is not configured on this deployment.");
   }
+
 
 
   const request = getRequest();
@@ -57,37 +102,34 @@ export async function runAssistant(message: string): Promise<string> {
     .limit(1000);
   if (error) throw new Error(`Could not load cargo data: ${error.message}`);
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Lovable-API-Key": lovableApiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "user",
-          content: buildAssistantPrompt(JSON.stringify(rows ?? []), message),
-        },
-      ],
-      max_tokens: 2000,
-    }),
-  });
+  const prompt = buildAssistantPrompt(JSON.stringify(rows ?? []), message);
 
-  const payload = (await response.json().catch(() => null)) as {
-    error?: { message?: string };
-    message?: string;
-    choices?: Array<{ message?: { content?: string } }>;
-  } | null;
-  if (!response.ok) {
-    const providerMessage = payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`;
-    if (response.status === 429) throw new Error(`AI rate limit reached, please try again shortly.`);
-    if (response.status === 402) throw new Error(`AI credits are exhausted: ${providerMessage}`);
-    throw new Error(`AI request failed: ${providerMessage}`);
+  let lastError = "AI request failed.";
+  const attempts: Array<() => Promise<{ response: Response; payload: AiPayload }>> = [
+    ...openRouterKeys.map((key) => () => callOpenRouter(key, prompt)),
+    ...(lovableApiKey ? [() => callLovable(lovableApiKey, prompt)] : []),
+  ];
+
+  for (const attempt of attempts) {
+    let response: Response;
+    let payload: AiPayload;
+    try {
+      ({ response, payload } = await attempt());
+    } catch (networkError) {
+      lastError = networkError instanceof Error ? networkError.message : "Network error";
+      continue;
+    }
+
+    if (!response.ok) {
+      lastError =
+        payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`;
+      continue;
+    }
+
+    const answer = payload?.choices?.[0]?.message?.content?.trim();
+    if (answer) return answer;
+    lastError = "The assistant returned an empty answer.";
   }
 
-  const answer = payload?.choices?.[0]?.message?.content?.trim();
-  if (!answer) throw new Error("The assistant returned an empty answer.");
-  return answer;
+  throw new Error(`AI request failed: ${lastError}`);
 }
