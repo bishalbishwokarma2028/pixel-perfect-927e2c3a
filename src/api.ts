@@ -21,6 +21,7 @@ type ConsignmentRow = {
   client_name: string;
   remarks: string;
   transit_points: unknown;
+  custom_data?: unknown;
   created_at: number;
   updated_at: number;
 };
@@ -47,6 +48,7 @@ function rowToConsignment(row: ConsignmentRow): Consignment {
     clientName: row.client_name ?? "",
     remarks: row.remarks ?? "",
     transitPoints: (row.transit_points ?? {}) as Partial<Record<TransitPoint, TransitData>>,
+    customData: (row.custom_data ?? {}) as Record<string, string | number | null>,
     createdAt: Number(row.created_at ?? 0),
     updatedAt: Number(row.updated_at ?? 0),
   };
@@ -73,6 +75,7 @@ function consignmentToRow(c: Partial<Consignment>): Record<string, unknown> {
   if (c.clientName !== undefined) row["client_name"] = c.clientName;
   if (c.remarks !== undefined) row["remarks"] = c.remarks;
   if (c.transitPoints !== undefined) row["transit_points"] = c.transitPoints;
+  if (c.customData !== undefined) row["custom_data"] = c.customData;
   if (c.createdAt !== undefined) row["created_at"] = c.createdAt;
   if (c.updatedAt !== undefined) row["updated_at"] = c.updatedAt;
   return row;
