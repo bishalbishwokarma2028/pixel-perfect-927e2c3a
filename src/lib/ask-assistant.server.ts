@@ -57,16 +57,14 @@ export async function runAssistant(message: string): Promise<string> {
     .limit(1000);
   if (error) throw new Error(`Could not load cargo data: ${error.message}`);
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${openRouterKey}`,
+      "Lovable-API-Key": lovableApiKey,
       "Content-Type": "application/json",
-      "HTTP-Referer": request.url,
-      "X-Title": "ADO's Assistant",
     },
     body: JSON.stringify({
-      model: "openrouter/free",
+      model: "google/gemini-3-flash",
       messages: [
         {
           role: "user",
@@ -79,19 +77,17 @@ export async function runAssistant(message: string): Promise<string> {
 
   const payload = (await response.json().catch(() => null)) as {
     error?: { message?: string };
+    message?: string;
     choices?: Array<{ message?: { content?: string } }>;
   } | null;
   if (!response.ok) {
-    const providerMessage = payload?.error?.message ?? `HTTP ${response.status}`;
-    if (response.status === 429) throw new Error(`OpenRouter rate limit reached: ${providerMessage}`);
-    if (response.status === 402) throw new Error(`OpenRouter credits are unavailable: ${providerMessage}`);
-    if (response.status === 401 || response.status === 403) {
-      throw new Error(`OpenRouter rejected the configured API key: ${providerMessage}`);
-    }
-    throw new Error(`OpenRouter request failed: ${providerMessage}`);
+    const providerMessage = payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`;
+    if (response.status === 429) throw new Error(`AI rate limit reached, please try again shortly.`);
+    if (response.status === 402) throw new Error(`AI credits are exhausted: ${providerMessage}`);
+    throw new Error(`AI request failed: ${providerMessage}`);
   }
 
   const answer = payload?.choices?.[0]?.message?.content?.trim();
-  if (!answer) throw new Error("OpenRouter returned an empty answer.");
+  if (!answer) throw new Error("The assistant returned an empty answer.");
   return answer;
 }
