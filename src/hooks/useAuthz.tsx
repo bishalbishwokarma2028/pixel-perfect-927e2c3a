@@ -33,10 +33,26 @@ export function AuthzProvider({
   onRevoked: () => void;
 }) {
   const userId = session?.user.id ?? null;
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isActive, setIsActive] = useState(false);
-  const [permissions, setPermissions] = useState<PermissionMap>({});
+
+  // Warm start: reuse the last known access snapshot for this user so the app
+  // renders immediately after sign-in while permissions refresh in background.
+  const cacheKey = userId ? `ado_authz_${userId}` : null;
+  const cached = useMemo(() => {
+    if (!cacheKey || typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(cacheKey);
+      return raw
+        ? (JSON.parse(raw) as { isAdmin: boolean; isActive: boolean; permissions: PermissionMap })
+        : null;
+    } catch {
+      return null;
+    }
+  }, [cacheKey]);
+
+  const [loading, setLoading] = useState(!cached);
+  const [isAdmin, setIsAdmin] = useState(cached?.isAdmin ?? false);
+  const [isActive, setIsActive] = useState(cached?.isActive ?? false);
+  const [permissions, setPermissions] = useState<PermissionMap>(cached?.permissions ?? {});
 
   const refresh = useCallback(async () => {
     if (!userId) {
@@ -51,23 +67,31 @@ export function AuthzProvider({
 
     const active = Boolean((profile as { is_active?: boolean } | null)?.is_active);
     const admin = ((roles ?? []) as { role: string }[]).some((r) => r.role === "admin");
+    const nextPermissions: PermissionMap = Object.fromEntries(
+      ((perms ?? []) as { module: string; can_view: boolean; can_edit: boolean }[]).map((p) => [
+        p.module,
+        { canView: p.can_view, canEdit: p.can_edit },
+      ]),
+    );
     setIsActive(active);
     setIsAdmin(admin);
-    setPermissions(
-      Object.fromEntries(
-        ((perms ?? []) as { module: string; can_view: boolean; can_edit: boolean }[]).map((p) => [
-          p.module,
-          { canView: p.can_view, canEdit: p.can_edit },
-        ]),
-      ),
-    );
+    setPermissions(nextPermissions);
     setLoading(false);
+    try {
+      window.localStorage.setItem(
+        `ado_authz_${userId}`,
+        JSON.stringify({ isAdmin: admin, isActive: active, permissions: nextPermissions }),
+      );
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
     if (!active) onRevoked();
   }, [userId, onRevoked]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
 
   // Live access revocation / permission changes.
   useEffect(() => {
