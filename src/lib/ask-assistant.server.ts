@@ -8,10 +8,11 @@ import { buildAssistantPrompt } from "./ai-prompt";
 export const AskAssistantInput = z.object({ message: z.string().min(1).max(4000) });
 
 export async function runAssistant(message: string): Promise<string> {
-  const openRouterKey = process.env["OPENROUTER_API_KEY"];
-  if (!openRouterKey) {
-    throw new Error("OPENROUTER_API_KEY is not configured on this deployment.");
+  const lovableApiKey = process.env["LOVABLE_API_KEY"];
+  if (!lovableApiKey) {
+    throw new Error("The AI service is not configured on this deployment.");
   }
+
 
   const request = getRequest();
   const authorization = request?.headers.get("authorization");
