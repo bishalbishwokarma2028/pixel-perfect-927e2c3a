@@ -7,11 +7,56 @@ import { buildAssistantPrompt } from "./ai-prompt";
 
 export const AskAssistantInput = z.object({ message: z.string().min(1).max(4000) });
 
+const OPENROUTER_MODEL = "google/gemini-2.5-flash";
+
+type AiPayload = {
+  error?: { message?: string };
+  message?: string;
+  choices?: Array<{ message?: { content?: string } }>;
+} | null;
+
+async function callOpenRouter(apiKey: string, prompt: string) {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "X-Title": "ADO Assistant",
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 2000,
+    }),
+  });
+  const payload = (await response.json().catch(() => null)) as AiPayload;
+  return { response, payload };
+}
+
+async function callLovable(apiKey: string, prompt: string) {
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "Lovable-API-Key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 2000,
+    }),
+  });
+  const payload = (await response.json().catch(() => null)) as AiPayload;
+  return { response, payload };
+}
+
 export async function runAssistant(message: string): Promise<string> {
+  const openRouterKeys = [
+    process.env["OPENROUTER_API_KEY"],
+    process.env["OPENROUTER_API_KEY_2"],
+  ].filter((key): key is string => Boolean(key));
   const lovableApiKey = process.env["LOVABLE_API_KEY"];
-  if (!lovableApiKey) {
+  if (openRouterKeys.length === 0 && !lovableApiKey) {
     throw new Error("The AI service is not configured on this deployment.");
   }
+
 
 
   const request = getRequest();
