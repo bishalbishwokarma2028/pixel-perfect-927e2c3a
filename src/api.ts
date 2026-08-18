@@ -137,13 +137,24 @@ function fail(message: string, error: { message: string } | null): never {
 
 export const api = {
   async getConsignments(): Promise<Consignment[]> {
-    const { data, error } = await supabase
-      .from("consignments")
-      .select("*")
-      .order("created_at", { ascending: true });
+    // Deterministic ordering (created_at + id tiebreak) so rows never jump
+    // around after an edit when several rows share the same timestamp.
+    const run = () =>
+      supabase
+        .from("consignments")
+        .select("*")
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true });
+
+    let { data, error } = await run();
+    if (error) {
+      // One silent retry: transient network/token blips shouldn't blank the grid.
+      ({ data, error } = await run());
+    }
     if (error) fail("Failed to fetch data", error);
     return (data as unknown as ConsignmentRow[]).map(rowToConsignment);
   },
+
 
   async addConsignments(items: Partial<Consignment>[]): Promise<{ success: boolean; added: number }> {
     const ts = now();

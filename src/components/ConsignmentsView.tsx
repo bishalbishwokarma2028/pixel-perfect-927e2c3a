@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { useRealtimeRefresh } from '../hooks/useRealtimeRefresh';
 import { api } from '../api';
 import { Consignment, Status } from '../types';
@@ -21,36 +21,67 @@ interface ConsignmentsViewProps {
 export default function ConsignmentsView({ origin, clientFilter, onClearClientFilter }: ConsignmentsViewProps) {
   const [data, setData] = useState<Consignment[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [showImport, setShowImport] = useState(false);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [editingConsignment, setEditingConsignment] = useState<Consignment | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Guards against out-of-order responses: a slow earlier request must never
+  // overwrite the rows returned by a newer one (that's what made data vanish).
+  const requestId = useRef(0);
+  const mounted = useRef(true);
+
   useEffect(() => {
-    fetchData();
-  }, [origin]);
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const fetchData = useCallback(
+    (opts?: { clearSelection?: boolean }) => {
+      const id = ++requestId.current;
+      setLoading(true);
+      api.getConsignments()
+        .then(res => {
+          if (!mounted.current || id !== requestId.current) return;
+          setData(res.filter(c => c.origin === origin));
+          setLoading(false);
+          if (opts?.clearSelection) setSelectedIds(new Set());
+        })
+        .catch(err => {
+          console.error('Error fetching consignments:', err);
+          if (!mounted.current || id !== requestId.current) return;
+          // Keep whatever is already on screen instead of blanking the grid.
+          setLoading(false);
+        });
+    },
+    [origin],
+  );
+
+  useEffect(() => {
+    fetchData({ clearSelection: true });
+  }, [fetchData]);
 
   useRealtimeRefresh('consignments', () => fetchData());
 
-  const fetchData = () => {
-    setLoading(true);
-    api.getConsignments()
-      .then(res => {
-        setData(res.filter(c => c.origin === origin));
-        setLoading(false);
-        setSelectedIds(new Set());
-      })
-      .catch(err => {
-        console.error('Error fetching consignments:', err);
-        setLoading(false);
-      });
-  };
+  // Recover instantly when the tab/network comes back, instead of showing stale
+  // or empty data until a manual refresh.
+  useEffect(() => {
+    const onFocus = () => fetchData();
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onFocus);
+    };
+  }, [fetchData]);
 
   const handleImport = async (newItems: Partial<Consignment>[]) => {
     await api.addConsignments(newItems);
     setShowImport(false);
-    fetchData();
+    fetchData({ clearSelection: true });
   };
 
   const handleSingleSave = async (id: string, updates: Partial<Consignment>) => {
@@ -62,7 +93,7 @@ export default function ConsignmentsView({ origin, clientFilter, onClearClientFi
     await api.bulkEdit(Array.from(selectedIds), updates);
     setShowBulkEdit(false);
     setSelectedIds(new Set());
-    fetchData();
+    fetchData({ clearSelection: true });
   };
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -90,8 +121,14 @@ export default function ConsignmentsView({ origin, clientFilter, onClearClientFi
     return data.filter(c => {
       if (clientFilter && c.clientName !== clientFilter) return false;
       return true;
-    }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    }).sort((a, b) => {
+      // Stable, deterministic order: newest first, id as tiebreak so editing a
+      // row (status, dates, etc.) never reshuffles the grid.
+      const diff = (b.createdAt || 0) - (a.createdAt || 0);
+      return diff !== 0 ? diff : a.id.localeCompare(b.id);
+    });
   }, [data, clientFilter]);
+
 
   // Volume metrics per Lot No.
   const lotTotals = useMemo(() => {
@@ -177,7 +214,7 @@ export default function ConsignmentsView({ origin, clientFilter, onClearClientFi
           </button>
 
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300 transition-colors shadow-2xs"
             title="Refresh Consignments"
           >
