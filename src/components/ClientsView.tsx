@@ -20,8 +20,8 @@ interface MatchedInfo {
 }
 
 export default function ClientsView({ onClientSelect }: { onClientSelect?: (clientName: string) => void }) {
-  const [data, setData] = useState<Consignment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<Consignment[]>(() => api.getCachedConsignments() ?? []);
+  const [loading, setLoading] = useState(() => !api.getCachedConsignments());
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingConsignment, setEditingConsignment] = useState<Consignment | null>(null);
