@@ -21,6 +21,7 @@ export type Database = {
           consignment_no: string
           container: string
           created_at: number
+          custom_data: Json
           date: string
           destination: string
           dispatched_date: string
@@ -42,6 +43,7 @@ export type Database = {
           consignment_no?: string
           container?: string
           created_at?: number
+          custom_data?: Json
           date?: string
           destination?: string
           dispatched_date?: string
@@ -63,6 +65,7 @@ export type Database = {
           consignment_no?: string
           container?: string
           created_at?: number
+          custom_data?: Json
           date?: string
           destination?: string
           dispatched_date?: string
@@ -79,6 +82,47 @@ export type Database = {
           updated_at?: number
         }
         Relationships: []
+      }
+      custom_fields: {
+        Row: {
+          created_at: string
+          field_key: string
+          field_type: string
+          id: string
+          label: string
+          parent_id: string | null
+          scope: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          field_key: string
+          field_type?: string
+          id?: string
+          label: string
+          parent_id?: string | null
+          scope?: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          field_key?: string
+          field_type?: string
+          id?: string
+          label?: string
+          parent_id?: string | null
+          scope?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_fields_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "custom_fields"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       module_permissions: {
         Row: {
@@ -182,6 +226,27 @@ export type Database = {
           id?: string
           is_active?: boolean
           updated_at?: string
+        }
+        Relationships: []
+      }
+      status_options: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
         }
         Relationships: []
       }

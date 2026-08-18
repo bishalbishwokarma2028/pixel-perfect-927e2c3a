@@ -32,7 +32,7 @@ export const STATUS_OPTIONS = [
   'Rasuwa Deliver',
 ] as const;
 
-export type Status = typeof STATUS_OPTIONS[number];
+export type Status = string;
 
 export interface TransitData {
   containerNo: string;
@@ -61,6 +61,7 @@ export interface Consignment {
   clientName: string;
   remarks: string;
   transitPoints: Partial<Record<TransitPoint, TransitData>>;
+  customData?: Record<string, string | number | null>;
   createdAt: number;
   updatedAt: number;
 }

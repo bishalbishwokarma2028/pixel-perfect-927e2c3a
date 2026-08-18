@@ -21,6 +21,7 @@ type ConsignmentRow = {
   client_name: string;
   remarks: string;
   transit_points: unknown;
+  custom_data?: unknown;
   created_at: number;
   updated_at: number;
 };
@@ -47,6 +48,7 @@ function rowToConsignment(row: ConsignmentRow): Consignment {
     clientName: row.client_name ?? "",
     remarks: row.remarks ?? "",
     transitPoints: (row.transit_points ?? {}) as Partial<Record<TransitPoint, TransitData>>,
+    customData: (row.custom_data ?? {}) as Record<string, string | number | null>,
     createdAt: Number(row.created_at ?? 0),
     updatedAt: Number(row.updated_at ?? 0),
   };
@@ -73,6 +75,7 @@ function consignmentToRow(c: Partial<Consignment>): Record<string, unknown> {
   if (c.clientName !== undefined) row["client_name"] = c.clientName;
   if (c.remarks !== undefined) row["remarks"] = c.remarks;
   if (c.transitPoints !== undefined) row["transit_points"] = c.transitPoints;
+  if (c.customData !== undefined) row["custom_data"] = c.customData;
   if (c.createdAt !== undefined) row["created_at"] = c.createdAt;
   if (c.updatedAt !== undefined) row["updated_at"] = c.updatedAt;
   return row;
@@ -144,8 +147,15 @@ let consignmentsCache: Consignment[] | null = null;
 let consignmentsCacheAt = 0;
 let consignmentsInFlight: Promise<Consignment[]> | null = null;
 const CONSIGNMENTS_TTL = 30_000;
+// Timestamp of the last local write; a fetch that started before it may carry
+// pre-edit rows and must not overwrite the freshly patched cache.
+let lastMutationAt = 0;
+function markMutation() {
+  lastMutationAt = Date.now();
+}
 
 async function fetchConsignments(): Promise<Consignment[]> {
+  const startedAt = Date.now();
   // Deterministic ordering (created_at + id tiebreak) so rows never jump
   // around after an edit when several rows share the same timestamp.
   const run = () =>
@@ -162,6 +172,10 @@ async function fetchConsignments(): Promise<Consignment[]> {
   }
   if (error) fail("Failed to fetch data", error);
   const list = (data as unknown as ConsignmentRow[]).map(rowToConsignment);
+  if (lastMutationAt > startedAt && consignmentsCache) {
+    // A local edit landed while this request was in flight — keep the patched copy.
+    return consignmentsCache;
+  }
   consignmentsCache = list;
   consignmentsCacheAt = Date.now();
   return list;
@@ -174,6 +188,43 @@ function loadConsignments(): Promise<Consignment[]> {
     });
   }
   return consignmentsInFlight;
+}
+
+/**
+ * Apply an edit to the cached list right away. Without this, a stale-cache read
+ * (which returns the cached copy while refreshing in the background) could hand
+ * a view the pre-edit row — that's what made a status change look like it
+ * "reset" until you changed it a second time.
+ */
+function patchCache(ids: string[], updates: Partial<Consignment>) {
+  markMutation();
+  if (!consignmentsCache) return;
+  const set = new Set(ids);
+  consignmentsCache = consignmentsCache.map((c) =>
+    set.has(c.id)
+      ? {
+          ...c,
+          ...updates,
+          transitPoints: updates.transitPoints
+            ? { ...c.transitPoints, ...updates.transitPoints }
+            : c.transitPoints,
+          customData: updates.customData ? { ...c.customData, ...updates.customData } : c.customData,
+        }
+      : c,
+  );
+}
+
+function replaceInCache(item: Consignment) {
+  markMutation();
+  if (!consignmentsCache) return;
+  consignmentsCache = consignmentsCache.map((c) => (c.id === item.id ? item : c));
+}
+
+function removeFromCache(ids: string[]) {
+  markMutation();
+  if (!consignmentsCache) return;
+  const set = new Set(ids);
+  consignmentsCache = consignmentsCache.filter((c) => !set.has(c.id));
 }
 
 export function invalidateConsignmentsCache() {
@@ -244,6 +295,7 @@ export const api = {
           .update(consignmentToRow({ ...updates, transitPoints: merged as never, updatedAt: now() }) as never)
           .eq("id", id);
         if (upErr) fail("Failed to update data", upErr);
+        patchCache([id], { ...updates, transitPoints: merged as never });
         updatedCount++;
       }
       return { success: true, updatedCount };
@@ -255,7 +307,7 @@ export const api = {
       .in("id", ids)
       .select("id");
     if (error) fail("Failed to update data", error);
-    invalidateConsignmentsCache();
+    patchCache(ids, updates);
     return { success: true, updatedCount: (data as unknown as { id: string }[]).length };
   },
 
@@ -267,8 +319,9 @@ export const api = {
       .select("*")
       .single();
     if (error) fail("Failed to update data", error);
-    invalidateConsignmentsCache();
-    return rowToConsignment(data as unknown as ConsignmentRow);
+    const updated = rowToConsignment(data as unknown as ConsignmentRow);
+    replaceInCache(updated);
+    return updated;
   },
 
   async bulkDelete(ids: string[]): Promise<{ success: boolean; deletedCount: number }> {
@@ -279,14 +332,14 @@ export const api = {
       .in("id", ids)
       .select("id");
     if (error) fail("Failed to delete data", error);
-    invalidateConsignmentsCache();
+    removeFromCache(ids);
     return { success: true, deletedCount: (data as unknown as { id: string }[]).length };
   },
 
   async deleteConsignment(id: string): Promise<{ success: boolean }> {
     const { error } = await supabase.from("consignments").delete().eq("id", id);
     if (error) fail("Failed to delete data", error);
-    invalidateConsignmentsCache();
+    removeFromCache([id]);
     return { success: true };
   },
 

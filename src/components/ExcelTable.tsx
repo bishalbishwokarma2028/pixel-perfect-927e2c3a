@@ -11,6 +11,7 @@ import {
   MoveHorizontal, ChevronLeft
 } from 'lucide-react';
 import ConsignmentDetailModal from './ConsignmentDetailModal';
+import { useTableConfig, buildFieldGroups } from '../hooks/useTableConfig';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 interface ExcelTableProps {
@@ -27,6 +28,8 @@ interface ExcelTableProps {
   onDelete?: (id: string) => void;
   onInlineUpdate?: (id: string, updates: Partial<Consignment>) => Promise<void> | void;
   showActions?: boolean;
+  /** Warehouse this sheet belongs to — decides which custom columns show up. */
+  scope?: 'Guangzhou' | 'Yiwu';
 
   // Selection Props
   selectedIds?: Set<string>;
@@ -57,12 +60,20 @@ export default function ExcelTable({
   onDelete,
   onInlineUpdate,
   showActions = false,
+  scope,
   selectedIds: externalSelectedIds,
   onSelectChange,
   onBulkEdit,
   onBulkDelete,
   onBulkStatusChange
 }: ExcelTableProps) {
+  const { fields, statusLabels } = useTableConfig();
+  const fieldGroups = useMemo(() => buildFieldGroups(fields, scope), [fields, scope]);
+  const customLeaves = useMemo(
+    () => fieldGroups.flatMap(g => (g.children.length > 0 ? g.children : [g.field])),
+    [fieldGroups],
+  );
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   // No default sorting — rows stay in their original import order until the user sorts.
@@ -346,7 +357,7 @@ export default function ExcelTable({
   // Column bookkeeping (checkbox, Date, Consignment No, Marka, CTN, CBM, GW, Destination, Status, Client, Lot, Container, Dispatched Date [, Loaded CTN])
   const leadingCols = 13 + (showLoadedCtn ? 1 : 0);
   const transitCols = HUB_META.reduce((n, h) => n + (expandedHubs[h.key] ? 4 : 1), 0);
-  const trailingCols = 1; // remarks
+  const trailingCols = 1 + customLeaves.length; // remarks + user-defined columns
   const totalCols = leadingCols + transitCols + trailingCols + (showActions ? 1 : 0);
   // subtotal row: label spans checkbox+Date+Consignment+Marka = 4, then CTN/CBM/GW, then the rest
   const subtotalTailSpan = totalCols - 4 - 3 - (showActions ? 1 : 0);
@@ -383,7 +394,7 @@ export default function ExcelTable({
               className="bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="ALL">All Statuses ({data.length})</option>
-              {STATUS_OPTIONS.map(opt => (
+              {statusLabels.map(opt => (
                 <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
@@ -487,7 +498,7 @@ export default function ExcelTable({
                 className="bg-slate-900 text-white text-xs font-bold rounded px-2 py-1 border border-slate-600 disabled:opacity-50 focus:outline-none focus:ring-1 focus:ring-blue-400"
               >
                 <option value="" disabled>Change Status...</option>
-                {STATUS_OPTIONS.map(opt => (
+                {statusLabels.map(opt => (
                   <option key={opt} value={opt} className="bg-slate-900 text-white font-medium">{opt}</option>
                 ))}
               </select>
@@ -667,6 +678,17 @@ export default function ExcelTable({
                   </th>
                 ))}
 
+                {fieldGroups.map(group => (
+                  <th
+                    key={group.field.id}
+                    rowSpan={group.children.length > 0 ? 1 : 2}
+                    colSpan={group.children.length > 0 ? group.children.length : 1}
+                    className="border border-slate-600 p-2 font-bold uppercase tracking-wider text-center whitespace-nowrap bg-fuchsia-950 text-fuchsia-100"
+                  >
+                    {group.field.label}
+                  </th>
+                ))}
+
                 <th rowSpan={2} className="border border-slate-600 p-2 font-bold uppercase tracking-wider text-center min-w-[130px] bg-slate-900">
                   Remarks
                 </th>
@@ -691,6 +713,19 @@ export default function ExcelTable({
                     <th key={hub.key} className="border border-slate-600 p-1 text-[9px] font-bold text-slate-400 bg-slate-900">Summary</th>
                   )
                 ))}
+
+                {fieldGroups
+                  .filter(group => group.children.length > 0)
+                  .map(group =>
+                    group.children.map(child => (
+                      <th
+                        key={child.id}
+                        className="border border-slate-600 p-1 text-[10px] font-bold uppercase bg-fuchsia-900 text-fuchsia-100 whitespace-nowrap min-w-[105px]"
+                      >
+                        {child.label}
+                      </th>
+                    )),
+                  )}
               </tr>
             </thead>
 
@@ -759,7 +794,7 @@ export default function ExcelTable({
                               onChange={e => handleStatusChange(row.id, e.target.value as Status)}
                               className={`w-full text-xs font-extrabold px-2 py-1.5 rounded-lg border shadow-2xs cursor-pointer transition-all focus:outline-none focus:ring-2 ${getStatusColor(row.status)}`}
                             >
-                              {STATUS_OPTIONS.map(opt => (
+                              {(statusLabels.includes(row.status) ? statusLabels : [row.status, ...statusLabels]).map(opt => (
                                 <option key={opt} value={opt} className="bg-white text-slate-900 font-semibold text-xs">{opt}</option>
                               ))}
                             </select>
@@ -903,6 +938,38 @@ export default function ExcelTable({
                                   />
                                 </td>
                               </React.Fragment>
+                            );
+                          })}
+
+                          {customLeaves.map(leaf => {
+                            const raw = row.customData?.[leaf.fieldKey];
+                            const value = raw === null || raw === undefined ? '' : String(raw);
+                            return (
+                              <td key={leaf.id} className="border border-slate-300 p-1 text-center whitespace-nowrap bg-fuchsia-50/30">
+                                {onInlineUpdate ? (
+                                  <input
+                                    key={`${leaf.id}-${row.id}-${value}`}
+                                    type={leaf.fieldType === 'number' ? 'number' : leaf.fieldType === 'date' ? 'date' : 'text'}
+                                    step={leaf.fieldType === 'number' ? 'any' : undefined}
+                                    defaultValue={value}
+                                    onBlur={e => {
+                                      const next = e.target.value;
+                                      if (next === value) return;
+                                      onInlineUpdate(row.id, {
+                                        customData: {
+                                          ...(row.customData || {}),
+                                          [leaf.fieldKey]: leaf.fieldType === 'number'
+                                            ? (next === '' ? null : Number(next))
+                                            : next,
+                                        },
+                                      });
+                                    }}
+                                    className="w-24 text-center text-xs p-1 border border-transparent hover:border-fuchsia-300 focus:border-fuchsia-500 rounded bg-transparent focus:bg-white font-semibold text-fuchsia-900"
+                                  />
+                                ) : (
+                                  <span className="text-xs font-semibold text-fuchsia-900">{value || '-'}</span>
+                                )}
+                              </td>
                             );
                           })}
 

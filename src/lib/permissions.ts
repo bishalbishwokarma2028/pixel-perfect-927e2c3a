@@ -12,6 +12,7 @@ export const MODULES: { id: ModuleId; label: string }[] = [
   { id: "notes", label: "Notes & Voice Memos" },
   { id: "analytics", label: "Freight Analytics" },
   { id: "ai", label: "ADO's Assistant" },
+  { id: "add", label: "ADD — Columns & Statuses" },
 ];
 
 export const MODULE_IDS = MODULES.map((m) => m.id);

@@ -8,4 +8,5 @@ export type View =
   | 'notes'
   | 'analytics'
   | 'ai'
+  | 'add'
   | 'staff';
