@@ -20,8 +20,8 @@ interface MatchedInfo {
 }
 
 export default function ClientsView({ onClientSelect }: { onClientSelect?: (clientName: string) => void }) {
-  const [data, setData] = useState<Consignment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<Consignment[]>(() => api.getCachedConsignments() ?? []);
+  const [loading, setLoading] = useState(() => !api.getCachedConsignments());
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingConsignment, setEditingConsignment] = useState<Consignment | null>(null);
@@ -30,10 +30,11 @@ export default function ClientsView({ onClientSelect }: { onClientSelect?: (clie
   const [whatsAppModalClient, setWhatsAppModalClient] = useState<string | null>(null);
   const [copiedMsg, setCopiedMsg] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (force = false) => {
     try {
-      setLoading(true);
-      const res = await api.getConsignments();
+      // Only block the UI when we have nothing to show yet.
+      if (!api.getCachedConsignments()) setLoading(true);
+      const res = await api.getConsignments(force);
       setData(res);
     } catch (err) {
       console.error('Failed to load clients data:', err);
@@ -46,7 +47,7 @@ export default function ClientsView({ onClientSelect }: { onClientSelect?: (clie
     fetchData();
   }, []);
 
-  useRealtimeRefresh('consignments', fetchData);
+  useRealtimeRefresh('consignments', () => fetchData(true));
 
   const handleEditSave = async (id: string, updates: Partial<Consignment>) => {
     await api.updateConsignment(id, updates);
@@ -411,7 +412,7 @@ export default function ClientsView({ onClientSelect }: { onClientSelect?: (clie
             <span className="text-base font-black text-blue-900">{clientStats.length} Registered</span>
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(true)}
             className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-300 transition-colors cursor-pointer"
             title="Refresh Directory"
           >
