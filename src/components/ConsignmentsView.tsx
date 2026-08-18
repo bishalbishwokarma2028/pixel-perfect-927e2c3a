@@ -214,7 +214,7 @@ export default function ConsignmentsView({ origin, clientFilter, onClearClientFi
           </button>
 
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300 transition-colors shadow-2xs"
             title="Refresh Consignments"
           >
