@@ -132,6 +132,4 @@ export async function runAssistant(message: string): Promise<string> {
   }
 
   throw new Error(`AI request failed: ${lastError}`);
-
-  return answer;
 }
