@@ -412,7 +412,7 @@ export default function ClientsView({ onClientSelect }: { onClientSelect?: (clie
             <span className="text-base font-black text-blue-900">{clientStats.length} Registered</span>
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData(true)}
             className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-300 transition-colors cursor-pointer"
             title="Refresh Directory"
           >
