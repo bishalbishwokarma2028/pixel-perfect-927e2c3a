@@ -102,37 +102,36 @@ export async function runAssistant(message: string): Promise<string> {
     .limit(1000);
   if (error) throw new Error(`Could not load cargo data: ${error.message}`);
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Lovable-API-Key": lovableApiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "user",
-          content: buildAssistantPrompt(JSON.stringify(rows ?? []), message),
-        },
-      ],
-      max_tokens: 2000,
-    }),
-  });
+  const prompt = buildAssistantPrompt(JSON.stringify(rows ?? []), message);
 
-  const payload = (await response.json().catch(() => null)) as {
-    error?: { message?: string };
-    message?: string;
-    choices?: Array<{ message?: { content?: string } }>;
-  } | null;
-  if (!response.ok) {
-    const providerMessage = payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`;
-    if (response.status === 429) throw new Error(`AI rate limit reached, please try again shortly.`);
-    if (response.status === 402) throw new Error(`AI credits are exhausted: ${providerMessage}`);
-    throw new Error(`AI request failed: ${providerMessage}`);
+  let lastError = "AI request failed.";
+  const attempts: Array<() => Promise<{ response: Response; payload: AiPayload }>> = [
+    ...openRouterKeys.map((key) => () => callOpenRouter(key, prompt)),
+    ...(lovableApiKey ? [() => callLovable(lovableApiKey, prompt)] : []),
+  ];
+
+  for (const attempt of attempts) {
+    let response: Response;
+    let payload: AiPayload;
+    try {
+      ({ response, payload } = await attempt());
+    } catch (networkError) {
+      lastError = networkError instanceof Error ? networkError.message : "Network error";
+      continue;
+    }
+
+    if (!response.ok) {
+      lastError =
+        payload?.error?.message ?? payload?.message ?? `HTTP ${response.status}`;
+      continue;
+    }
+
+    const answer = payload?.choices?.[0]?.message?.content?.trim();
+    if (answer) return answer;
+    lastError = "The assistant returned an empty answer.";
   }
 
-  const answer = payload?.choices?.[0]?.message?.content?.trim();
-  if (!answer) throw new Error("The assistant returned an empty answer.");
+  throw new Error(`AI request failed: ${lastError}`);
+
   return answer;
 }
