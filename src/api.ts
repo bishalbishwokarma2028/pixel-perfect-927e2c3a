@@ -179,6 +179,40 @@ function loadConsignments(): Promise<Consignment[]> {
   return consignmentsInFlight;
 }
 
+/**
+ * Apply an edit to the cached list right away. Without this, a stale-cache read
+ * (which returns the cached copy while refreshing in the background) could hand
+ * a view the pre-edit row — that's what made a status change look like it
+ * "reset" until you changed it a second time.
+ */
+function patchCache(ids: string[], updates: Partial<Consignment>) {
+  if (!consignmentsCache) return;
+  const set = new Set(ids);
+  consignmentsCache = consignmentsCache.map((c) =>
+    set.has(c.id)
+      ? {
+          ...c,
+          ...updates,
+          transitPoints: updates.transitPoints
+            ? { ...c.transitPoints, ...updates.transitPoints }
+            : c.transitPoints,
+          customData: updates.customData ? { ...c.customData, ...updates.customData } : c.customData,
+        }
+      : c,
+  );
+}
+
+function replaceInCache(item: Consignment) {
+  if (!consignmentsCache) return;
+  consignmentsCache = consignmentsCache.map((c) => (c.id === item.id ? item : c));
+}
+
+function removeFromCache(ids: string[]) {
+  if (!consignmentsCache) return;
+  const set = new Set(ids);
+  consignmentsCache = consignmentsCache.filter((c) => !set.has(c.id));
+}
+
 export function invalidateConsignmentsCache() {
   consignmentsCacheAt = 0;
 }
@@ -247,6 +281,7 @@ export const api = {
           .update(consignmentToRow({ ...updates, transitPoints: merged as never, updatedAt: now() }) as never)
           .eq("id", id);
         if (upErr) fail("Failed to update data", upErr);
+        patchCache([id], { ...updates, transitPoints: merged as never });
         updatedCount++;
       }
       return { success: true, updatedCount };
@@ -258,7 +293,7 @@ export const api = {
       .in("id", ids)
       .select("id");
     if (error) fail("Failed to update data", error);
-    invalidateConsignmentsCache();
+    patchCache(ids, updates);
     return { success: true, updatedCount: (data as unknown as { id: string }[]).length };
   },
 
@@ -270,8 +305,9 @@ export const api = {
       .select("*")
       .single();
     if (error) fail("Failed to update data", error);
-    invalidateConsignmentsCache();
-    return rowToConsignment(data as unknown as ConsignmentRow);
+    const updated = rowToConsignment(data as unknown as ConsignmentRow);
+    replaceInCache(updated);
+    return updated;
   },
 
   async bulkDelete(ids: string[]): Promise<{ success: boolean; deletedCount: number }> {
@@ -282,14 +318,14 @@ export const api = {
       .in("id", ids)
       .select("id");
     if (error) fail("Failed to delete data", error);
-    invalidateConsignmentsCache();
+    removeFromCache(ids);
     return { success: true, deletedCount: (data as unknown as { id: string }[]).length };
   },
 
   async deleteConsignment(id: string): Promise<{ success: boolean }> {
     const { error } = await supabase.from("consignments").delete().eq("id", id);
     if (error) fail("Failed to delete data", error);
-    invalidateConsignmentsCache();
+    removeFromCache([id]);
     return { success: true };
   },
 
