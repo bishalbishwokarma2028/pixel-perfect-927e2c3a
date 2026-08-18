@@ -30,10 +30,11 @@ export default function ClientsView({ onClientSelect }: { onClientSelect?: (clie
   const [whatsAppModalClient, setWhatsAppModalClient] = useState<string | null>(null);
   const [copiedMsg, setCopiedMsg] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (force = false) => {
     try {
-      setLoading(true);
-      const res = await api.getConsignments();
+      // Only block the UI when we have nothing to show yet.
+      if (!api.getCachedConsignments()) setLoading(true);
+      const res = await api.getConsignments(force);
       setData(res);
     } catch (err) {
       console.error('Failed to load clients data:', err);
@@ -46,7 +47,7 @@ export default function ClientsView({ onClientSelect }: { onClientSelect?: (clie
     fetchData();
   }, []);
 
-  useRealtimeRefresh('consignments', fetchData);
+  useRealtimeRefresh('consignments', () => fetchData(true));
 
   const handleEditSave = async (id: string, updates: Partial<Consignment>) => {
     await api.updateConsignment(id, updates);
