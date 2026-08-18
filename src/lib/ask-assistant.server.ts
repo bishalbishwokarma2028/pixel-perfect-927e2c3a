@@ -64,14 +64,14 @@ export async function runAssistant(message: string): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-3-flash",
+      model: "google/gemini-2.5-flash",
       messages: [
         {
           role: "user",
           content: buildAssistantPrompt(JSON.stringify(rows ?? []), message),
         },
       ],
-      max_tokens: 800,
+      max_tokens: 2000,
     }),
   });
 
