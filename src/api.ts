@@ -147,8 +147,15 @@ let consignmentsCache: Consignment[] | null = null;
 let consignmentsCacheAt = 0;
 let consignmentsInFlight: Promise<Consignment[]> | null = null;
 const CONSIGNMENTS_TTL = 30_000;
+// Timestamp of the last local write; a fetch that started before it may carry
+// pre-edit rows and must not overwrite the freshly patched cache.
+let lastMutationAt = 0;
+function markMutation() {
+  lastMutationAt = Date.now();
+}
 
 async function fetchConsignments(): Promise<Consignment[]> {
+  const startedAt = Date.now();
   // Deterministic ordering (created_at + id tiebreak) so rows never jump
   // around after an edit when several rows share the same timestamp.
   const run = () =>
@@ -165,6 +172,10 @@ async function fetchConsignments(): Promise<Consignment[]> {
   }
   if (error) fail("Failed to fetch data", error);
   const list = (data as unknown as ConsignmentRow[]).map(rowToConsignment);
+  if (lastMutationAt > startedAt && consignmentsCache) {
+    // A local edit landed while this request was in flight — keep the patched copy.
+    return consignmentsCache;
+  }
   consignmentsCache = list;
   consignmentsCacheAt = Date.now();
   return list;
@@ -186,6 +197,7 @@ function loadConsignments(): Promise<Consignment[]> {
  * "reset" until you changed it a second time.
  */
 function patchCache(ids: string[], updates: Partial<Consignment>) {
+  markMutation();
   if (!consignmentsCache) return;
   const set = new Set(ids);
   consignmentsCache = consignmentsCache.map((c) =>
@@ -203,11 +215,13 @@ function patchCache(ids: string[], updates: Partial<Consignment>) {
 }
 
 function replaceInCache(item: Consignment) {
+  markMutation();
   if (!consignmentsCache) return;
   consignmentsCache = consignmentsCache.map((c) => (c.id === item.id ? item : c));
 }
 
 function removeFromCache(ids: string[]) {
+  markMutation();
   if (!consignmentsCache) return;
   const set = new Set(ids);
   consignmentsCache = consignmentsCache.filter((c) => !set.has(c.id));
