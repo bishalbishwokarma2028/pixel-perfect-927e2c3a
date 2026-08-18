@@ -1,24 +1,71 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import AppShell from "@/components/AppShell";
+import { AuthzProvider } from "@/hooks/useAuthz";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "ADO International Transport Nepal — Cargo Dashboard" },
+      {
+        name: "description",
+        content:
+          "Track China-to-Nepal cargo: warehouse stock, consignments, transit checkpoints, lots, clients and freight analytics.",
+      },
+      { property: "og:title", content: "ADO International Transport Nepal — Cargo Dashboard" },
+      {
+        property: "og:description",
+        content:
+          "Live logistics dashboard for Guangzhou and Yiwu warehouses, Tibetan transit checkpoints and Nepal deliveries.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const navigate = useNavigate();
+  const [session, setSession] = useState<Session | null>(null);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+      setChecked(true);
+    });
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setChecked(true);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (checked && !session) navigate({ to: "/auth" });
+  }, [checked, session, navigate]);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    navigate({ to: "/auth" });
+  }, [navigate]);
+
+  if (!checked || !session) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <AuthzProvider session={session} onRevoked={signOut}>
+      <AppShell userEmail={session.user.email ?? ""} onSignOut={signOut} />
+    </AuthzProvider>
   );
 }
+
