@@ -14,16 +14,220 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      consignments: {
+        Row: {
+          cbm: number
+          client_name: string
+          consignment_no: string
+          container: string
+          created_at: number
+          date: string
+          destination: string
+          dispatched_date: string
+          gw: number
+          id: string
+          loaded_ctn: number | null
+          lot_no: string | null
+          marka: string
+          origin: string
+          remarks: string
+          status: string
+          total_ctn: number
+          transit_points: Json
+          updated_at: number
+        }
+        Insert: {
+          cbm?: number
+          client_name?: string
+          consignment_no?: string
+          container?: string
+          created_at?: number
+          date?: string
+          destination?: string
+          dispatched_date?: string
+          gw?: number
+          id: string
+          loaded_ctn?: number | null
+          lot_no?: string | null
+          marka?: string
+          origin?: string
+          remarks?: string
+          status?: string
+          total_ctn?: number
+          transit_points?: Json
+          updated_at?: number
+        }
+        Update: {
+          cbm?: number
+          client_name?: string
+          consignment_no?: string
+          container?: string
+          created_at?: number
+          date?: string
+          destination?: string
+          dispatched_date?: string
+          gw?: number
+          id?: string
+          loaded_ctn?: number | null
+          lot_no?: string | null
+          marka?: string
+          origin?: string
+          remarks?: string
+          status?: string
+          total_ctn?: number
+          transit_points?: Json
+          updated_at?: number
+        }
+        Relationships: []
+      }
+      module_permissions: {
+        Row: {
+          can_edit: boolean
+          can_view: boolean
+          id: string
+          module: string
+          user_id: string
+        }
+        Insert: {
+          can_edit?: boolean
+          can_view?: boolean
+          id?: string
+          module: string
+          user_id: string
+        }
+        Update: {
+          can_edit?: boolean
+          can_view?: boolean
+          id?: string
+          module?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notes: {
+        Row: {
+          audio_data_url: string | null
+          audio_duration: number | null
+          audio_transcription: string | null
+          category: string
+          color_theme: string
+          content: string
+          created_at: number
+          id: string
+          image_url: string | null
+          is_pinned: boolean
+          linked_consignment_no: string | null
+          linked_marka: string | null
+          title: string
+          updated_at: number
+        }
+        Insert: {
+          audio_data_url?: string | null
+          audio_duration?: number | null
+          audio_transcription?: string | null
+          category?: string
+          color_theme?: string
+          content?: string
+          created_at?: number
+          id: string
+          image_url?: string | null
+          is_pinned?: boolean
+          linked_consignment_no?: string | null
+          linked_marka?: string | null
+          title?: string
+          updated_at?: number
+        }
+        Update: {
+          audio_data_url?: string | null
+          audio_duration?: number | null
+          audio_transcription?: string | null
+          category?: string
+          color_theme?: string
+          content?: string
+          created_at?: number
+          id?: string
+          image_url?: string | null
+          is_pinned?: boolean
+          linked_consignment_no?: string | null
+          linked_marka?: string | null
+          title?: string
+          updated_at?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string
+          full_name: string
+          id: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          full_name?: string
+          id: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      can_edit_any: {
+        Args: { _modules: string[]; _user_id: string }
+        Returns: boolean
+      }
+      can_view_any: {
+        Args: { _modules: string[]; _user_id: string }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_active_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_active_user: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +354,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "staff"],
+    },
   },
 } as const
