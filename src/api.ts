@@ -135,25 +135,68 @@ function fail(message: string, error: { message: string } | null): never {
   throw new Error(error?.message ? `${message}: ${error.message}` : message);
 }
 
-export const api = {
-  async getConsignments(): Promise<Consignment[]> {
-    // Deterministic ordering (created_at + id tiebreak) so rows never jump
-    // around after an edit when several rows share the same timestamp.
-    const run = () =>
-      supabase
-        .from("consignments")
-        .select("*")
-        .order("created_at", { ascending: true })
-        .order("id", { ascending: true });
+// ---- Shared consignments cache (stale-while-revalidate) -------------------
+// Every screen (Clients, Inventory, Lots, Analytics, Dashboard) pulls the same
+// consignment list. Without a cache each navigation refetches the whole table,
+// which is why opening a screen showed a long spinner. Now the first loaded
+// copy is reused instantly and refreshed in the background.
+let consignmentsCache: Consignment[] | null = null;
+let consignmentsCacheAt = 0;
+let consignmentsInFlight: Promise<Consignment[]> | null = null;
+const CONSIGNMENTS_TTL = 30_000;
 
-    let { data, error } = await run();
-    if (error) {
-      // One silent retry: transient network/token blips shouldn't blank the grid.
-      ({ data, error } = await run());
-    }
-    if (error) fail("Failed to fetch data", error);
-    return (data as unknown as ConsignmentRow[]).map(rowToConsignment);
+async function fetchConsignments(): Promise<Consignment[]> {
+  // Deterministic ordering (created_at + id tiebreak) so rows never jump
+  // around after an edit when several rows share the same timestamp.
+  const run = () =>
+    supabase
+      .from("consignments")
+      .select("*")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+
+  let { data, error } = await run();
+  if (error) {
+    // One silent retry: transient network/token blips shouldn't blank the grid.
+    ({ data, error } = await run());
+  }
+  if (error) fail("Failed to fetch data", error);
+  const list = (data as unknown as ConsignmentRow[]).map(rowToConsignment);
+  consignmentsCache = list;
+  consignmentsCacheAt = Date.now();
+  return list;
+}
+
+function loadConsignments(): Promise<Consignment[]> {
+  if (!consignmentsInFlight) {
+    consignmentsInFlight = fetchConsignments().finally(() => {
+      consignmentsInFlight = null;
+    });
+  }
+  return consignmentsInFlight;
+}
+
+export function invalidateConsignmentsCache() {
+  consignmentsCacheAt = 0;
+}
+
+export const api = {
+  /** Cached snapshot if one exists (used to render immediately, no spinner). */
+  getCachedConsignments(): Consignment[] | null {
+    return consignmentsCache;
   },
+
+  async getConsignments(force = false): Promise<Consignment[]> {
+    const fresh = consignmentsCache && Date.now() - consignmentsCacheAt < CONSIGNMENTS_TTL;
+    if (!force && fresh) return consignmentsCache!;
+    if (!force && consignmentsCache) {
+      // Stale copy: return it now, refresh silently in the background.
+      void loadConsignments().catch(() => {});
+      return consignmentsCache;
+    }
+    return loadConsignments();
+  },
+
 
 
   async addConsignments(items: Partial<Consignment>[]): Promise<{ success: boolean; added: number }> {
