@@ -64,6 +64,11 @@ const SectionTitle: React.FC<{ icon: React.ReactNode; children: React.ReactNode 
 
 const ConsignmentDetailModal: React.FC<ConsignmentDetailModalProps> = ({ consignment, onClose }) => {
   const [copied, setCopied] = React.useState(false);
+  const { fields } = useTableConfig();
+  const customGroups = React.useMemo(
+    () => buildFieldGroups(fields, consignment?.origin),
+    [fields, consignment?.origin],
+  );
 
   React.useEffect(() => {
     if (!consignment) return;
