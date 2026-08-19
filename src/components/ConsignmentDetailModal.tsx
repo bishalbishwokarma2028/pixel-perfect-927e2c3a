@@ -74,7 +74,7 @@ const ConsignmentDetailModal: React.FC<ConsignmentDetailModalProps> = ({ consign
   if (!consignment) return null;
   const c = consignment;
 
-  const statusIndex = STATUS_OPTIONS.indexOf(c.status);
+  const statusIndex = (STATUS_OPTIONS as readonly string[]).indexOf(c.status);
   const progress = statusIndex >= 0
     ? Math.round(((statusIndex + 1) / STATUS_OPTIONS.length) * 100)
     : 0;
