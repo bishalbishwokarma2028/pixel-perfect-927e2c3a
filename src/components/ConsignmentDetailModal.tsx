@@ -244,6 +244,37 @@ const ConsignmentDetailModal: React.FC<ConsignmentDetailModalProps> = ({ consign
             </section>
           </div>
 
+          {/* Custom columns added in the ADD section */}
+          {customGroups.length > 0 && (
+            <section>
+              <SectionTitle icon={<Tag className="h-3 w-3" />}>Custom fields</SectionTitle>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {customGroups.map(({ field, children }) => (
+                  <div key={field.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    {children.length === 0 ? (
+                      <Field label={field.label} value={c.customData?.[field.fieldKey] ?? ''} />
+                    ) : (
+                      <>
+                        <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          {field.label}
+                        </p>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          {children.map((sub) => (
+                            <Field
+                              key={sub.id}
+                              label={sub.label}
+                              value={c.customData?.[sub.fieldKey] ?? ''}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Journey */}
           <section>
             <SectionTitle icon={<Route className="h-3 w-3" />}>Transit journey — checkpoint by checkpoint</SectionTitle>
