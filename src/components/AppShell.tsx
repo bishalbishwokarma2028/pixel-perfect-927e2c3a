@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { 
   Package, Truck, CheckCircle, Search, Menu, X, 
   Bot, MapPin, ClipboardList, Layers, 
-  BarChart3, StickyNote, LogOut, ShieldCheck
+  BarChart3, StickyNote, LogOut, ShieldCheck, PlusSquare
 } from 'lucide-react';
 import adoLogoFull from '../assets/ado-logo-full.png';
 import type { View } from '../views';
@@ -15,6 +15,7 @@ import LotManagerView from './LotManagerView';
 import AnalyticsView from './AnalyticsView';
 import NotesView from './NotesView';
 import StaffAdminView from './StaffAdminView';
+import AddManagerView from './AddManagerView';
 import { useAuthz } from '@/hooks/useAuthz';
 
 
@@ -34,6 +35,7 @@ export default function AppShell({ userEmail, onSignOut }: { userEmail: string; 
     { id: 'notes', label: 'Notes & Voice Memos', icon: StickyNote },
     { id: 'analytics', label: 'Freight Analytics', icon: BarChart3 },
     { id: 'ai', label: "ADO's Assistant", icon: Bot },
+    { id: 'add', label: 'ADD — Columns & Statuses', icon: PlusSquare },
     { id: 'staff', label: 'Staff & Permissions', icon: ShieldCheck },
   ] as const;
 
@@ -112,6 +114,8 @@ export default function AppShell({ userEmail, onSignOut }: { userEmail: string; 
         return <AnalyticsView />;
       case 'ai':
         return <AIAssistantView />;
+      case 'add':
+        return <AddManagerView />;
       case 'staff':
         return <StaffAdminView />;
       default:
