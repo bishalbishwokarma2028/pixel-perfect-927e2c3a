@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Consignment, TRANSIT_POINTS, STATUS_OPTIONS } from '../types';
 import { formatNumber } from '../lib/utils';
+import { useTableConfig, buildFieldGroups } from '../hooks/useTableConfig';
 
 interface ConsignmentDetailModalProps {
   consignment: Consignment | null;
