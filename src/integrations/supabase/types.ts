@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      column_settings: {
+        Row: {
+          hidden: boolean
+          key: string
+          label: string | null
+          updated_at: string
+        }
+        Insert: {
+          hidden?: boolean
+          key: string
+          label?: string | null
+          updated_at?: string
+        }
+        Update: {
+          hidden?: boolean
+          key?: string
+          label?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       consignments: {
         Row: {
           cbm: number
