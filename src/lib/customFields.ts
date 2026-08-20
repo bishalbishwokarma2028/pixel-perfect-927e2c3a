@@ -127,11 +127,11 @@ export const fieldsExtras = {
     patch: Partial<{ label: string; scope: FieldScope; fieldType: FieldType; sortOrder: number; parentId: string | null }>,
   ): Promise<void> {
     const row: Record<string, unknown> = {};
-    if (patch.label !== undefined) row.label = patch.label.trim();
-    if (patch.scope !== undefined) row.scope = patch.scope;
-    if (patch.fieldType !== undefined) row.field_type = patch.fieldType;
-    if (patch.sortOrder !== undefined) row.sort_order = patch.sortOrder;
-    if (patch.parentId !== undefined) row.parent_id = patch.parentId;
+    if (patch.label !== undefined) row['label'] = patch.label.trim();
+    if (patch.scope !== undefined) row['scope'] = patch.scope;
+    if (patch.fieldType !== undefined) row['field_type'] = patch.fieldType;
+    if (patch.sortOrder !== undefined) row['sort_order'] = patch.sortOrder;
+    if (patch.parentId !== undefined) row['parent_id'] = patch.parentId;
     const { error } = await supabase.from("custom_fields").update(row as never).eq("id", id);
     if (error) throw new Error(error.message);
   },
@@ -148,8 +148,8 @@ export const fieldsExtras = {
 export const statusExtras = {
   async update(id: string, patch: Partial<{ label: string; sortOrder: number }>): Promise<void> {
     const row: Record<string, unknown> = {};
-    if (patch.label !== undefined) row.label = patch.label.trim();
-    if (patch.sortOrder !== undefined) row.sort_order = patch.sortOrder;
+    if (patch.label !== undefined) row['label'] = patch.label.trim();
+    if (patch.sortOrder !== undefined) row['sort_order'] = patch.sortOrder;
     const { error } = await supabase.from("status_options").update(row as never).eq("id", id);
     if (error) throw new Error(error.message);
   },
